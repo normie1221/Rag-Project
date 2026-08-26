@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+venv/
+.venv/
+
+# Downloaded model weights (regenerate with `python download_models.py`)
+backend/models/
+
+# Evaluation harness runtime artifacts
+backend/evaluation/.cache/
+backend/evaluation/reports/
+
+# OS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/

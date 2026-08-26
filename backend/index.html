@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Audio Intelligence & Evaluation System</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #020617;
+    --surface: #0f172a;
+    --card:    #1e293b;
+    --border:  #334155;
+    --muted:   #475569;
+    --text:    #f1f5f9;
+    --sub:     #94a3b8;
+    --blue:    #3b82f6;
+    --blue-dk: #1d4ed8;
+    --green:   #10b981;
+    --amber:   #f59e0b;
+    --red:     #ef4444;
+    --radius:  10px;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; }
+  body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 3px; }
+
+  /* header */
+  #header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  #header .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; }
+  #header .brand .shield { color: var(--blue); font-size: 18px; }
+  #header .badge { font-size: 11px; color: var(--muted); font-family: monospace; border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; }
+  #status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); display: inline-block; margin-right: 6px; transition: background .3s; }
+  #status-dot.ready { background: var(--green); }
+  #status-label { font-size: 12px; color: var(--sub); }
+
+  /* tabs */
+  #tabbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 2px;
+    padding: 0 16px;
+    flex-shrink: 0;
+  }
+  .tab {
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--sub);
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color .2s, border-color .2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .tab-badge {
+    background: var(--blue);
+    color: #fff;
+    font-size: 10px;
+    border-radius: 9999px;
+    padding: 1px 6px;
+    font-weight: 700;
+  }
+
+  /* pages */
+  #pages { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+  .page { display: none; flex: 1; overflow: hidden; }
+  .page.active { display: flex; }
+
+  /* ── UPLOAD PAGE ── */
+  #upload-page { flex-direction: row; }
+  #upload-main { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  #drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+  }
+  #drop-zone:hover, #drop-zone.drag { border-color: var(--blue); background: rgba(59,130,246,.06); }
+  #drop-zone.disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
+  #drop-zone .dz-icon { font-size: 36px; margin-bottom: 10px; }
+  #drop-zone .dz-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  #drop-zone .dz-sub { color: var(--sub); font-size: 12px; }
+  #file-input { display: none; }
+
+  #jobs-section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; font-weight: 600; }
+  .job-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 8px;
+  }
+  .job-card.done  { border-color: #064e3b; background: #022c22; }
+  .job-card.error { border-color: #7f1d1d; background: #1f0606; }
+  .job-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .job-name { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .job-status { font-size: 12px; color: var(--sub); }
+  .job-status.ok   { color: var(--green); }
+  .job-status.err  { color: var(--red); }
+  .job-dismiss { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; }
+  .job-dismiss:hover { color: var(--text); }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .transcript-preview {
+    background: var(--surface);
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 12px;
+    color: var(--sub);
+    max-height: 80px;
+    overflow-y: auto;
+    line-height: 1.5;
+  }
+
+  /* sources sidebar */
+  #sources-panel {
+    width: 280px;
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #sources-header {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  #sources-header h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--sub); font-weight: 600; }
+  #sources-count { background: var(--card); color: var(--sub); font-size: 11px; border-radius: 9999px; padding: 1px 8px; }
+  #sources-list { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .source-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+  }
+  .source-top { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .source-icon { color: var(--blue); }
+  .source-name { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .source-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; }
+  .source-del:hover { color: var(--red); }
+  .source-meta { display: flex; gap: 12px; font-size: 11px; color: var(--muted); }
+  .no-sources { text-align: center; padding: 32px 12px; color: var(--muted); font-size: 12px; line-height: 1.8; }
+
+  /* ── CHAT PAGE ── */
+  #chat-page { flex-direction: row; }
+  #chat-sidebar {
+    width: 240px;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  #chat-sidebar h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+  .chat-source-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .chat-source-item .csname { font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 2px; }
+  .chat-source-item .csmeta { color: var(--muted); font-size: 11px; }
+  .no-sources-chat { color: var(--muted); font-size: 12px; text-align: center; padding: 16px 8px; line-height: 1.7; }
+
+  #chat-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* message bubbles */
+  .msg-row { display: flex; gap: 10px; max-width: 820px; }
+  .msg-row.user { justify-content: flex-end; margin-left: auto; }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+  }
+  .avatar.ai { background: #1e40af; }
+  .avatar.warn { background: #92400e; }
+  .bubble {
+    border-radius: 16px;
+    padding: 10px 14px;
+    line-height: 1.6;
+    font-size: 14px;
+    max-width: 600px;
+  }
+  .bubble.user { background: var(--blue); color: #fff; border-radius: 16px 4px 16px 16px; }
+  .bubble.ai { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 4px 16px 16px 16px; }
+  .bubble.refused { background: rgba(120,53,15,.3); border: 1px solid rgba(245,158,11,.3); color: #fde68a; border-radius: 4px 16px 16px 16px; }
+
+  .sources-toggle {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11px; color: var(--muted); background: none; border: none; cursor: pointer;
+    margin-top: 6px; padding: 2px 0;
+    transition: color .2s;
+  }
+  .sources-toggle:hover { color: var(--sub); }
+  .sources-toggle .arrow { display: inline-block; transition: transform .2s; }
+  .sources-toggle.open .arrow { transform: rotate(180deg); }
+  .score-badge {
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--sub); font-size: 10px; border-radius: 4px; padding: 1px 5px; margin-left: 6px;
+  }
+  .source-refs { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+  .source-ref {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .ref-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .ref-file { color: var(--blue); font-weight: 500; }
+  .ref-ts { color: var(--muted); font-size: 11px; margin-left: auto; }
+  .ref-excerpt { color: var(--sub); line-height: 1.5; cursor: pointer; }
+
+  /* thinking */
+  .thinking { display: flex; gap: 10px; max-width: 820px; }
+  .thinking .dots span {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--muted); margin: 0 2px;
+    animation: bounce 1.2s infinite;
+  }
+  .thinking .dots span:nth-child(2) { animation-delay: .2s; }
+  .thinking .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+
+  /* input area */
+  #chat-input-area {
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    padding: 12px 16px;
+    flex-shrink: 0;
+  }
+  #chat-hint { font-size: 11px; color: var(--red); margin-bottom: 6px; display: none; }
+  #chat-hint.visible { display: block; }
+  #input-row { display: flex; gap: 8px; }
+  #question-input {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-size: 14px;
+    resize: none;
+    font-family: inherit;
+    min-height: 42px;
+    max-height: 120px;
+    transition: border-color .2s;
+    outline: none;
+    overflow-y: auto;
+  }
+  #question-input:focus { border-color: var(--blue); }
+  #question-input::placeholder { color: var(--muted); }
+  #question-input:disabled { opacity: .45; cursor: not-allowed; }
+  #send-btn {
+    background: var(--blue);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 0 18px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: background .2s, opacity .2s;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #send-btn:hover { background: var(--blue-dk); }
+  #send-btn:disabled { opacity: .4; cursor: not-allowed; }
+  #input-footer { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  /* ── EVALUATE PAGE ── */
+  #evaluate-page { flex-direction: column; overflow-y: auto; }
+  #eval-main { max-width: 980px; margin: 0 auto; width: 100%; padding: 24px 20px 60px; display: flex; flex-direction: column; gap: 20px; }
+  #eval-intro { color: var(--sub); font-size: 13px; line-height: 1.6; }
+  #eval-intro code { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+  #eval-run-row { display: flex; align-items: center; gap: 12px; }
+  #eval-run-btn {
+    background: var(--blue); color: #fff; border: none; border-radius: 8px;
+    padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 8px; transition: background .2s, opacity .2s;
+  }
+  #eval-run-btn:hover { background: var(--blue-dk); }
+  #eval-run-btn:disabled { opacity: .5; cursor: not-allowed; }
+  #eval-progress { font-size: 12px; color: var(--sub); font-family: monospace; }
+
+  #eval-empty { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 13px; line-height: 1.9; }
+  #eval-empty .big { font-size: 32px; margin-bottom: 6px; }
+
+  #eval-results { display: none; flex-direction: column; gap: 20px; }
+
+  .eval-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .eval-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .eval-card .ec-label { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+  .eval-card .ec-value { font-size: 22px; font-weight: 700; }
+  .eval-card.good .ec-value { color: var(--green); }
+  .eval-card.warn .ec-value { color: var(--amber); }
+  .eval-card.bad  .ec-value { color: var(--red); }
+  .eval-card .ec-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .eval-section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; margin-bottom: 10px; }
+
+  /* confusion matrix */
+  #confusion-grid { display: grid; grid-template-columns: 140px 1fr 1fr; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 12px; }
+  #confusion-grid > div { background: var(--surface); padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px; }
+  #confusion-grid .cm-head { background: var(--card); font-weight: 600; color: var(--sub); font-size: 11px; }
+  #confusion-grid .cm-row-label { background: var(--card); font-weight: 500; color: var(--sub); font-size: 11px; align-items: flex-start; text-align: left; }
+  #confusion-grid .cm-num { font-size: 20px; font-weight: 700; }
+  #confusion-grid .cm-tag { font-size: 10px; color: var(--muted); }
+  .cm-good .cm-num { color: var(--green); }
+  .cm-bad .cm-num { color: var(--red); }
+
+  /* per-question table */
+  #eval-items-list { display: flex; flex-direction: column; gap: 6px; }
+  .eval-item-row {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; cursor: pointer;
+  }
+  .eval-item-row .ei-top { display: flex; align-items: center; gap: 8px; }
+  .eval-item-row .ei-mark { width: 18px; text-align: center; flex-shrink: 0; font-weight: 700; }
+  .eval-item-row.pass .ei-mark { color: var(--green); }
+  .eval-item-row.partial .ei-mark { color: var(--amber); }
+  .eval-item-row.fail .ei-mark { color: var(--red); }
+  .eval-item-row .ei-q { flex: 1; font-size: 13px; }
+  .eval-item-row .ei-cat { font-size: 10px; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; text-transform: uppercase; letter-spacing: .04em; }
+  .eval-item-row .ei-detail { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; color: var(--sub); line-height: 1.7; }
+  .eval-item-row.open .ei-detail { display: block; }
+  .eval-item-row .ei-detail b { color: var(--text); }
+  .eval-item-row .ei-detail .ei-metrics { display: flex; gap: 14px; margin-top: 6px; font-family: monospace; font-size: 11px; color: var(--muted); }
+
+  #eval-filter-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .eval-filter-btn {
+    background: var(--card); border: 1px solid var(--border); color: var(--sub);
+    font-size: 11px; padding: 4px 10px; border-radius: 9999px; cursor: pointer; transition: all .15s;
+  }
+  .eval-filter-btn:hover { color: var(--text); }
+  .eval-filter-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div id="header">
+  <div class="brand">
+    <span class="shield">🛡</span>
+    Audio Intelligence System
+    <span class="badge">OFFLINE</span>
+  </div>
+  <div style="display:flex;align-items:center;">
+    <span id="status-dot"></span>
+    <span id="status-label">Loading models…</span>
+  </div>
+</div>
+
+<!-- ── Tab bar ── -->
+<div id="tabbar">
+  <button class="tab active" data-tab="upload">
+    🎙 Upload Audio
+  </button>
+  <button class="tab" data-tab="chat">
+    💬 Ask Questions
+    <span class="tab-badge" id="sources-tab-badge" style="display:none">0</span>
+  </button>
+  <button class="tab" data-tab="evaluate">
+    📊 Evaluate
+    <span class="tab-badge" id="eval-tab-badge" style="display:none">—</span>
+  </button>
+</div>
+
+<!-- ── Pages ── -->
+<div id="pages">
+
+  <!-- UPLOAD PAGE -->
+  <div class="page active" id="upload-page">
+    <div id="upload-main">
+      <!-- Drop zone -->
+      <div id="drop-zone" class="disabled">
+        <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.flac,.webm,.ogg" multiple />
+        <div class="dz-icon">📂</div>
+        <div class="dz-title" id="dz-title">Loading models, please wait…</div>
+        <div class="dz-sub">Supports MP3, WAV, M4A, FLAC · Multiple files allowed</div>
+      </div>
+
+      <!-- Active jobs -->
+      <div id="jobs-section" style="display:none">
+        <h3>Processing</h3>
+        <div id="jobs-list"></div>
+      </div>
+    </div>
+
+    <!-- Sources panel -->
+    <div id="sources-panel">
+      <div id="sources-header">
+        <h2>Loaded Audio</h2>
+        <span id="sources-count">0</span>
+      </div>
+      <div id="sources-list">
+        <div class="no-sources" id="no-sources-msg">
+          📁<br>No audio loaded yet.<br>Upload files to begin.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHAT PAGE -->
+  <div class="page" id="chat-page">
+    <div id="chat-sidebar">
+      <h3>Sources</h3>
+      <div id="chat-sources-list">
+        <div class="no-sources-chat" id="no-sources-chat-msg">
+          No audio loaded.<br>Go to Upload tab.
+        </div>
+      </div>
+    </div>
+
+    <div id="chat-main">
+      <div id="messages">
+        <div class="msg-row">
+          <div class="avatar ai">🎙</div>
+          <div class="bubble ai">
+            Hello. I am your Audio Intelligence Assistant.<br><br>
+            Upload audio files and ask questions about their content.
+            I will only answer from the uploaded audio — nothing else.
+          </div>
+        </div>
+      </div>
+
+      <div id="chat-input-area">
+        <div id="chat-hint"></div>
+        <div id="input-row">
+          <textarea id="question-input" rows="1" placeholder="Ask about the audio content…" disabled></textarea>
+          <button id="send-btn" disabled title="Send">➤</button>
+        </div>
+        <div id="input-footer">Enter to send · Shift+Enter for new line</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EVALUATE PAGE -->
+  <div class="page" id="evaluate-page">
+    <div id="eval-main">
+      <div id="eval-intro">
+        Runs the built-in evaluation harness against the sample files in <code>test_audio/</code> —
+        27 grounded questions plus 6 out-of-scope questions the system should refuse.
+        Every reference answer was taken from the actual transcript, so this measures the real
+        retrieval + extractive-QA pipeline end to end, not a mocked one.
+        First run transcribes and caches the audio (a couple of minutes); later runs are fast.
+      </div>
+
+      <div id="eval-run-row">
+        <button id="eval-run-btn" disabled>▶ Run Evaluation</button>
+        <span id="eval-progress"></span>
+      </div>
+
+      <div id="eval-empty">
+        <div class="big">📊</div>
+        No evaluation run yet.<br>Click "Run Evaluation" to score the pipeline against the sample dataset.
+      </div>
+
+      <div id="eval-results">
+
+        <div class="eval-section">
+          <h3>Summary</h3>
+          <div class="eval-cards" id="eval-cards"></div>
+        </div>
+
+        <div class="eval-section">
+          <h3>Confusion Matrix — expected vs. actual behaviour</h3>
+          <div id="confusion-grid"></div>
+        </div>
+
+        <div class="eval-section">
+          <h3>Per-Question Results</h3>
+          <div id="eval-filter-row"></div>
+          <div id="eval-items-list" style="margin-top:10px"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let backendReady = false
+let sources = []
+let isQuerying = false
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function fmtDuration(s) {
+  if (!s) return '—'
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60)
+  return h > 0
+    ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
+    : `${m}:${String(sec).padStart(2,'0')}`
+}
+function fmtWords(n) { return n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n) }
+function uid() { return Math.random().toString(36).slice(2) }
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+// ── Backend status poll ───────────────────────────────────────────────────────
+async function pollStatus() {
+  try {
+    const r = await fetch('/api/status')
+    const d = await r.json()
+    if (d.ready) {
+      backendReady = true
+      document.getElementById('status-dot').classList.add('ready')
+      document.getElementById('status-label').textContent = 'Models ready'
+      document.getElementById('drop-zone').classList.remove('disabled')
+      document.getElementById('dz-title').textContent = 'Drop audio files here or click to browse'
+      document.getElementById('eval-run-btn').disabled = false
+      updateChatInput()
+      clearInterval(statusInterval)
+    }
+  } catch(_) {}
+}
+const statusInterval = setInterval(pollStatus, 1500)
+pollStatus()
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'))
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
+    btn.classList.add('active')
+    document.getElementById(btn.dataset.tab + '-page').classList.add('active')
+    if (btn.dataset.tab === 'chat') scrollBottom()
+  })
+})
+
+// ── Drop zone ─────────────────────────────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone')
+const fileInput = document.getElementById('file-input')
+
+dropZone.addEventListener('click', () => { if (backendReady) fileInput.click() })
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag') })
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'))
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag')
+  if (backendReady) [...e.dataTransfer.files].forEach(startUpload)
+})
+fileInput.addEventListener('change', e => {
+  [...e.target.files].forEach(startUpload)
+  fileInput.value = ''
+})
+
+// ── Upload with SSE ───────────────────────────────────────────────────────────
+function startUpload(file) {
+  const jobId = uid()
+  const jobsSection = document.getElementById('jobs-section')
+  const jobsList = document.getElementById('jobs-list')
+  jobsSection.style.display = 'block'
+
+  const card = document.createElement('div')
+  card.id = 'job-' + jobId
+  card.className = 'job-card'
+  card.innerHTML = `
+    <div class="job-header">
+      <span class="spinner"></span>
+      <span class="job-name">${esc(file.name)}</span>
+      <span class="job-status" id="jstatus-${jobId}">Transcribing…</span>
+    </div>
+    <div class="transcript-preview" id="jtext-${jobId}"></div>
+  `
+  jobsList.appendChild(card)
+
+  const form = new FormData()
+  form.append('file', file)
+
+  fetch('/api/upload', { method: 'POST', body: form })
+    .then(async res => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }))
+        markJob(jobId, 'error', err.error || 'Upload failed')
+        return
+      }
+      const reader = res.body.getReader()
+      const dec = new TextDecoder()
+      let buf = ''
+
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buf += dec.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop()
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const ev = JSON.parse(line.slice(6))
+            handleUploadEvent(jobId, ev)
+          } catch(_) {}
+        }
+      }
+    })
+    .catch(err => markJob(jobId, 'error', err.message))
+}
+
+function handleUploadEvent(jobId, ev) {
+  const statusEl = document.getElementById('jstatus-' + jobId)
+  const textEl   = document.getElementById('jtext-'   + jobId)
+  const card     = document.getElementById('job-'     + jobId)
+
+  switch (ev.type) {
+    case 'seg':
+      textEl.textContent += ev.data.text + ' '
+      textEl.scrollTop = textEl.scrollHeight
+      break
+    case 'status':
+      if (statusEl) statusEl.textContent = ev.data
+      break
+    case 'done':
+      sources = ev.data.sources
+      renderSources()
+      markJob(jobId, 'done', 'Indexed — ' + (ev.data.words || 0) + ' words')
+      break
+    case 'error':
+      markJob(jobId, 'error', ev.data)
+      break
+  }
+}
+
+function markJob(jobId, state, msg) {
+  const card   = document.getElementById('job-' + jobId)
+  const status = document.getElementById('jstatus-' + jobId)
+  if (!card) return
+
+  const spinner = card.querySelector('.spinner')
+  if (spinner) spinner.outerHTML = state === 'done'
+    ? '<span style="color:var(--green)">✔</span>'
+    : '<span style="color:var(--red)">✖</span>'
+
+  card.classList.add(state === 'done' ? 'done' : 'error')
+  if (status) { status.textContent = msg; status.className = 'job-status ' + (state === 'done' ? 'ok' : 'err') }
+
+  // Add dismiss button
+  const hdr = card.querySelector('.job-header')
+  if (hdr && !hdr.querySelector('.job-dismiss')) {
+    const btn = document.createElement('button')
+    btn.className = 'job-dismiss'; btn.textContent = '×'
+    btn.onclick = () => {
+      card.remove()
+      if (!document.getElementById('jobs-list').children.length)
+        document.getElementById('jobs-section').style.display = 'none'
+    }
+    hdr.appendChild(btn)
+  }
+}
+
+// ── Sources rendering ─────────────────────────────────────────────────────────
+function renderSources() {
+  // sidebar (upload tab)
+  const list = document.getElementById('sources-list')
+  const noMsg = document.getElementById('no-sources-msg')
+  const countEl = document.getElementById('sources-count')
+  countEl.textContent = sources.length
+  noMsg.style.display = sources.length ? 'none' : 'block'
+
+  // remove old source cards
+  list.querySelectorAll('.source-card').forEach(el => el.remove())
+
+  sources.forEach(src => {
+    const card = document.createElement('div')
+    card.className = 'source-card'
+    card.id = 'src-' + src.id
+    card.innerHTML = `
+      <div class="source-top">
+        <span class="source-icon">🎵</span>
+        <span class="source-name" title="${esc(src.filename)}">${esc(src.filename)}</span>
+        <button class="source-del" title="Remove" onclick="deleteSource('${src.id}')">🗑</button>
+      </div>
+      <div class="source-meta">
+        <span>⏱ ${fmtDuration(src.duration)}</span>
+        <span>📝 ${fmtWords(src.word_count)} words</span>
+        <span>${src.chunk_count} chunks</span>
+      </div>
+    `
+    list.appendChild(card)
+  })
+
+  // tab badge
+  const badge = document.getElementById('sources-tab-badge')
+  badge.textContent = sources.length
+  badge.style.display = sources.length ? 'inline' : 'none'
+
+  // chat sidebar
+  renderChatSidebar()
+  updateChatInput()
+}
+
+function renderChatSidebar() {
+  const list = document.getElementById('chat-sources-list')
+  const noMsg = document.getElementById('no-sources-chat-msg')
+  list.querySelectorAll('.chat-source-item').forEach(el => el.remove())
+  noMsg.style.display = sources.length ? 'none' : 'block'
+
+  sources.forEach(src => {
+    const el = document.createElement('div')
+    el.className = 'chat-source-item'
+    el.innerHTML = `
+      <div class="csname" title="${esc(src.filename)}">🎵 ${esc(src.filename)}</div>
+      <div class="csmeta">${fmtWords(src.word_count)} words · ${fmtDuration(src.duration)}</div>
+    `
+    list.appendChild(el)
+  })
+}
+
+async function deleteSource(id) {
+  const res = await fetch('/api/sources/' + id, { method: 'DELETE' })
+  const data = await res.json()
+  if (data.ok) { sources = data.sources; renderSources() }
+}
+
+// ── Chat input state ──────────────────────────────────────────────────────────
+function updateChatInput() {
+  const input = document.getElementById('question-input')
+  const btn   = document.getElementById('send-btn')
+  const hint  = document.getElementById('chat-hint')
+  const canChat = backendReady && sources.length > 0 && !isQuerying
+
+  input.disabled = !canChat
+  btn.disabled   = !canChat
+
+  if (!backendReady) {
+    hint.textContent = '⏳ Models loading, please wait…'; hint.classList.add('visible')
+  } else if (sources.length === 0) {
+    hint.textContent = '⚠ Upload audio files first before asking questions.'; hint.classList.add('visible')
+  } else {
+    hint.classList.remove('visible')
+  }
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+const questionInput = document.getElementById('question-input')
+const sendBtn = document.getElementById('send-btn')
+
+questionInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+})
+questionInput.addEventListener('input', e => {
+  e.target.style.height = 'auto'
+  e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
+  sendBtn.disabled = !e.target.value.trim() || !backendReady || sources.length === 0 || isQuerying
+})
+sendBtn.addEventListener('click', sendMessage)
+
+async function sendMessage() {
+  const q = questionInput.value.trim()
+  if (!q || isQuerying || !backendReady || sources.length === 0) return
+
+  questionInput.value = ''
+  questionInput.style.height = 'auto'
+  isQuerying = true
+  updateChatInput()
+
+  appendMessage('user', q)
+  const thinkingEl = appendThinking()
+  scrollBottom()
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q })
+    })
+    const data = await res.json()
+    thinkingEl.remove()
+
+    if (data.error && !data.refused) {
+      appendMessage('refused', data.error)
+    } else if (data.refused) {
+      appendMessage('refused', data.reason || 'Cannot answer this question.')
+    } else {
+      appendMessage('ai', data.answer || 'No answer found.', data.sources, data.score, data.qa_score)
+    }
+  } catch(err) {
+    thinkingEl.remove()
+    appendMessage('refused', 'Connection error: ' + err.message)
+  } finally {
+    isQuerying = false
+    updateChatInput()
+    scrollBottom()
+  }
+}
+
+function appendMessage(role, text, srcs, score, qaScore) {
+  const container = document.getElementById('messages')
+  const row = document.createElement('div')
+  row.className = 'msg-row' + (role === 'user' ? ' user' : '')
+
+  if (role === 'user') {
+    row.innerHTML = `<div class="bubble user">${esc(text).replace(/\n/g,'<br>')}</div>`
+  } else {
+    const isRefused = role === 'refused'
+    const bubbleClass = isRefused ? 'refused' : 'ai'
+    const avatarIcon = isRefused ? '⚠' : '🎙'
+    const avatarClass = isRefused ? 'warn' : 'ai'
+
+    let sourcesHtml = ''
+    if (!isRefused && srcs && srcs.length > 0) {
+      const pct = score != null ? Math.round(score * 100) : null
+      const srcId = 'srefs-' + uid()
+      sourcesHtml = `
+        <button class="sources-toggle" onclick="toggleRefs('${srcId}', this)">
+          <span class="arrow">▾</span>
+          ${srcs.length} source${srcs.length > 1 ? 's' : ''}
+          ${pct != null ? `<span class="score-badge">relevance ${pct}%</span>` : ''}
+        </button>
+        <div class="source-refs" id="${srcId}" style="display:none">
+          ${srcs.map(s => `
+            <div class="source-ref">
+              <div class="ref-header">
+                <span style="color:var(--blue)">🎵</span>
+                <span class="ref-file">${esc(s.filename)}</span>
+                <span class="ref-ts">⏱ ${esc(s.timestamp)}</span>
+              </div>
+              <div class="ref-excerpt" onclick="this.style.webkitLineClamp=this.style.webkitLineClamp?'':'3'"
+                style="-webkit-line-clamp:3;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden">
+                ${esc(s.excerpt)}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `
+    }
+
+    row.innerHTML = `
+      <div class="avatar ${avatarClass}">${avatarIcon}</div>
+      <div>
+        <div class="bubble ${bubbleClass}">${esc(text).replace(/\n/g,'<br>')}</div>
+        ${sourcesHtml}
+      </div>
+    `
+  }
+
+  container.appendChild(row)
+}
+
+function toggleRefs(id, btn) {
+  const el = document.getElementById(id)
+  const open = el.style.display !== 'none'
+  el.style.display = open ? 'none' : 'flex'
+  btn.classList.toggle('open', !open)
+}
+
+function appendThinking() {
+  const container = document.getElementById('messages')
+  const el = document.createElement('div')
+  el.className = 'thinking'
+  el.innerHTML = `
+    <div class="avatar ai">🎙</div>
+    <div class="bubble ai" style="padding:12px 16px">
+      <div class="dots"><span></span><span></span><span></span></div>
+    </div>
+  `
+  container.appendChild(el)
+  return el
+}
+
+function scrollBottom() {
+  const msgs = document.getElementById('messages')
+  setTimeout(() => msgs.scrollTop = msgs.scrollHeight, 50)
+}
+
+// ── Evaluate tab ──────────────────────────────────────────────────────────────
+let lastEvalReport = null
+let evalFilter = 'all'
+const evalRunBtn = document.getElementById('eval-run-btn')
+const evalProgress = document.getElementById('eval-progress')
+const evalEmpty = document.getElementById('eval-empty')
+const evalResults = document.getElementById('eval-results')
+
+evalRunBtn.addEventListener('click', runEvaluation)
+
+async function runEvaluation() {
+  if (!backendReady) return
+  evalRunBtn.disabled = true
+  evalRunBtn.textContent = '⏳ Running…'
+  evalProgress.textContent = 'Starting…'
+  evalEmpty.style.display = 'none'
+
+  try {
+    const res = await fetch('/api/evaluate', { method: 'POST' })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }))
+      evalProgress.textContent = 'Error: ' + (err.error || 'evaluation failed')
+      return
+    }
+    const reader = res.body.getReader()
+    const dec = new TextDecoder()
+    let buf = ''
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buf += dec.decode(value, { stream: true })
+      const lines = buf.split('\n')
+      buf = lines.pop()
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        try {
+          const ev = JSON.parse(line.slice(6))
+          if (ev.type === 'status') {
+            evalProgress.textContent = ev.data
+          } else if (ev.type === 'done') {
+            lastEvalReport = ev.data
+            renderEvalReport(ev.data)
+            evalProgress.textContent = 'Done.'
+          } else if (ev.type === 'error') {
+            evalProgress.textContent = 'Error: ' + ev.data
+          }
+        } catch(_) {}
+      }
+    }
+  } catch(err) {
+    evalProgress.textContent = 'Connection error: ' + err.message
+  } finally {
+    evalRunBtn.disabled = false
+    evalRunBtn.textContent = '▶ Run Evaluation'
+  }
+}
+
+function evalCardClass(value, goodAt, warnAt) {
+  if (value >= goodAt) return 'good'
+  if (value >= warnAt) return 'warn'
+  return 'bad'
+}
+
+function renderEvalReport(d) {
+  evalResults.style.display = 'flex'
+
+  // ── tab badge ──
+  const badge = document.getElementById('eval-tab-badge')
+  badge.textContent = Math.round(d.overall_score * 100) + '%'
+  badge.style.display = 'inline'
+
+  // ── summary cards ──
+  const cards = [
+    { label: 'Overall Score',        value: d.overall_score,          fmt: pct, cls: evalCardClass(d.overall_score, 0.7, 0.4) },
+    { label: 'Exact Match',          value: d.exact_match_rate,       fmt: pct, cls: evalCardClass(d.exact_match_rate, 0.6, 0.3) },
+    { label: 'Answer F1',            value: d.f1_avg,                 fmt: pct, cls: evalCardClass(d.f1_avg, 0.7, 0.4) },
+    { label: 'Retrieval Recall@K',   value: d.retrieval_recall_at_k,  fmt: pct, cls: evalCardClass(d.retrieval_recall_at_k, 0.8, 0.5) },
+    { label: 'Refusal Accuracy',     value: d.refusal_accuracy,       fmt: pct, cls: evalCardClass(d.refusal_accuracy, 0.8, 0.5) },
+    { label: 'Hallucination Rate',   value: d.hallucination_rate,     fmt: pct, cls: evalCardClass(1 - d.hallucination_rate, 0.8, 0.5) },
+    { label: 'Avg Latency',          value: d.avg_latency_ms, fmt: v => Math.round(v) + ' ms', cls: '' },
+    { label: 'Questions',            value: d.total, fmt: v => String(v), cls: '', sub: `${d.answerable_count} answerable · ${d.unanswerable_count} out-of-scope` },
+  ]
+  const cardsEl = document.getElementById('eval-cards')
+  cardsEl.innerHTML = cards.map(c => `
+    <div class="eval-card ${c.cls}">
+      <div class="ec-label">${esc(c.label)}</div>
+      <div class="ec-value">${c.fmt(c.value)}</div>
+      ${c.sub ? `<div class="ec-sub">${esc(c.sub)}</div>` : ''}
+    </div>
+  `).join('')
+
+  // ── confusion matrix ──
+  const cm = d.confusion_matrix
+  const grid = document.getElementById('confusion-grid')
+  grid.innerHTML = `
+    <div class="cm-head"></div>
+    <div class="cm-head">Answered</div>
+    <div class="cm-head">Refused</div>
+
+    <div class="cm-row-label">Expected: answerable</div>
+    <div class="cm-good"><div class="cm-num">${cm.correct_answer}</div><div class="cm-tag">correct answer</div></div>
+    <div class="cm-bad"><div class="cm-num">${cm.false_refusal}</div><div class="cm-tag">false refusal</div></div>
+
+    <div class="cm-row-label">Expected: no info<br>in loaded audio</div>
+    <div class="cm-bad"><div class="cm-num">${cm.hallucination}</div><div class="cm-tag">hallucination</div></div>
+    <div class="cm-good"><div class="cm-num">${cm.correct_refusal}</div><div class="cm-tag">correct refusal</div></div>
+  `
+
+  // ── filters ──
+  const categories = ['all', ...new Set(d.items.map(i => i.category))]
+  const filterRow = document.getElementById('eval-filter-row')
+  filterRow.innerHTML = categories.map(c => `
+    <button class="eval-filter-btn ${c === evalFilter ? 'active' : ''}" data-cat="${esc(c)}">${esc(c)}</button>
+  `).join('')
+  filterRow.querySelectorAll('.eval-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      evalFilter = btn.dataset.cat
+      filterRow.querySelectorAll('.eval-filter-btn').forEach(b => b.classList.toggle('active', b === btn))
+      renderEvalItems(d)
+    })
+  })
+
+  renderEvalItems(d)
+}
+
+function pct(v) { return Math.round(v * 100) + '%' }
+
+function outcomeMark(item) {
+  if (item.outcome === 'correct_answer') return item.exact_match ? { mark: '✔', cls: 'pass' } : { mark: '~', cls: 'partial' }
+  if (item.outcome === 'correct_refusal') return { mark: '✔', cls: 'pass' }
+  return { mark: '✘', cls: 'fail' }
+}
+
+function renderEvalItems(d) {
+  const list = document.getElementById('eval-items-list')
+  const items = evalFilter === 'all' ? d.items : d.items.filter(i => i.category === evalFilter)
+
+  list.innerHTML = items.map(item => {
+    const { mark, cls } = outcomeMark(item)
+    const rowId = 'ei-' + item.id
+    return `
+      <div class="eval-item-row ${cls}" id="${rowId}">
+        <div class="ei-top" onclick="document.getElementById('${rowId}').classList.toggle('open')">
+          <span class="ei-mark">${mark}</span>
+          <span class="ei-q">${esc(item.question)}</span>
+          <span class="ei-cat">${esc(item.category)}</span>
+        </div>
+        <div class="ei-detail">
+          ${item.answerable ? `
+            <div><b>Reference:</b> ${esc(item.reference_answer || '—')}</div>
+            <div><b>Predicted:</b> ${item.refused ? '<em>(refused — false refusal)</em>' : esc(item.predicted_answer || '—')}</div>
+            <div><b>Expected source:</b> ${esc(item.expected_source || '—')} ·
+                 <b>Retrieved:</b> ${item.retrieved_sources.map(esc).join(', ') || '—'}
+                 ${item.retrieval_hit ? '✔' : '✘'}</div>
+            <div class="ei-metrics">
+              <span>EM: ${item.exact_match ? 'yes' : 'no'}</span>
+              <span>F1: ${item.f1.toFixed(2)}</span>
+              <span>similarity: ${item.similarity_score.toFixed(3)}</span>
+              <span>qa score: ${item.qa_score.toFixed(3)}</span>
+              <span>${item.latency_ms.toFixed(0)} ms</span>
+            </div>
+          ` : `
+            <div><b>Expected:</b> refusal (no relevant audio loaded for this question)</div>
+            <div><b>Actual:</b> ${item.refused ? 'refused ✔' : 'answered — ' + esc(item.predicted_answer || '') + ' (hallucination ✘)'}</div>
+            <div class="ei-metrics">
+              <span>similarity: ${item.similarity_score.toFixed(3)}</span>
+              <span>${item.latency_ms.toFixed(0)} ms</span>
+            </div>
+          `}
+        </div>
+      </div>
+    `
+  }).join('')
+}
+
+// Initial source load
+fetch('/api/sources').then(r => r.json()).then(d => {
+  if (d.sources && d.sources.length) { sources = d.sources; renderSources() }
+}).catch(_=>{})
+</script>
+
+</body>
+</html>
