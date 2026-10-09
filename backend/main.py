@@ -10,8 +10,8 @@ import os
 import shutil
 import tempfile
 import threading
-import uuid
-from contextlib import asynccontextmanager
+import uuid 
+from contextlib import asynccontextmanager #create lifespan context manager for FastAPI
 from datetime import datetime
 
 import uvicorn
@@ -28,7 +28,6 @@ from qa_engine.qa import QAEngine
 from query import TOP_K, answer_question
 from transcriber.whisper_transcriber import WhisperTranscriber
 from vector_store.faiss_store import FAISSStore
-
 # ── Global model instances (loaded once at startup) ───────────────────────────
 _transcriber: WhisperTranscriber | None = None
 _embedder: BGEEmbedder | None = None

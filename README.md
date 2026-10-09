@@ -264,3 +264,4 @@ Adi-rag/
     │   └── test_integration.py   # real-model end-to-end tests (skips if not downloaded)
     └── models/                   # downloaded weights (gitignored, run download_models.py)
 ```
+# Rag-Project
